@@ -58,7 +58,7 @@ const patterns = {
   complexDefaultSlots: /<sergey-slot>(.*?)<\/sergey-slot>/gms,
   simpleDefaultSlots: /<sergey-slot\s?\/>/gm,
   complexImports: /<sergey-import src="([a-zA-Z0-9-_.\\\/]*)"(?:\sas="(.*?)")?>(.*?)<\/sergey-import>/gms,
-  simpleImports: /<sergey-import src="([a-zA-Z0-9-_.\\\/]*)"(?:\sas="(.*?)")?\s\n?\/>/gm,
+  simpleImports: /<sergey-import src="([a-zA-Z0-9-_.\\\/]*)"(?:\sas="(.*?)")?\s?\/>(.*?)/gms,
   links: /<sergey-link\s?(.*?)(?:to|href)="([a-zA-Z0-9-_.#?\\\/]*)"\s?(.*?)>(.*?)<\/sergey-link>/gms
 };
 
@@ -285,10 +285,11 @@ const compileSlots = (body, slots) => {
 };
 
 const compileImport = (body, pattern) => {
-  var m;
-  var bodyOriginal = bodyOriginal;
+  let m;
+  let copy = body; // A copy of body to do regex.exec on with accurate indexes
+
   // Simple imports
-  while ((m = pattern.exec(bodyOriginal)) !== null) {
+  while ((m = pattern.exec(copy)) !== null) {
     console.log("m:");
     console.log(m);
     if (m.index === pattern.lastIndex) {
