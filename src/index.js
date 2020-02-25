@@ -58,7 +58,7 @@ const patterns = {
   complexDefaultSlots: /<sergey-slot>(.*?)<\/sergey-slot>/gms,
   simpleDefaultSlots: /<sergey-slot\s?\/>/gm,
   complexImports: /<sergey-import src="([a-zA-Z0-9-_.\\\/]*)"(?:\sas="(.*?)")?>(.*?)<\/sergey-import>/gms,
-  simpleImports: /<sergey-import src="([a-zA-Z0-9-_.\\\/]*)"(?:\sas="(.*?)")?\s?\/>/gm,
+  simpleImports: /<sergey-import src="([a-zA-Z0-9-_.\\\/]*)"(?:\sas="(.*?)")?\s\n?\/>/gm,
   links: /<sergey-link\s?(.*?)(?:to|href)="([a-zA-Z0-9-_.#?\\\/]*)"\s?(.*?)>(.*?)<\/sergey-link>/gms
 };
 
@@ -285,9 +285,12 @@ const compileSlots = (body, slots) => {
 };
 
 const compileImport = (body, pattern) => {
-  let m;
+  var m;
+  var bodyOriginal = bodyOriginal;
   // Simple imports
-  while ((m = pattern.exec(body)) !== null) {
+  while ((m = pattern.exec(bodyOriginal)) !== null) {
+    console.log("m:");
+    console.log(m);
     if (m.index === pattern.lastIndex) {
       pattern.lastIndex++;
     }
@@ -296,6 +299,7 @@ const compileImport = (body, pattern) => {
     let replace = '';
 
     if (htmlAs === 'markdown') {
+      console.log("A thing is markdown woo");
       replace = formatContent(
         marked(cachedImports[getKey(key, '.md', CONTENT)] || '')
       );
@@ -307,21 +311,48 @@ const compileImport = (body, pattern) => {
 
     // Recurse
     replace = compileTemplate(replace, slots);
+    console.log("replacing:");
+    console.log(find);
+    console.log("with:");
+    console.log(replace);
     body = body.replace(find, replace);
+    console.log("m.index is:", m.index, "and pattern.lastIndex is", pattern.lastIndex);
   }
 
   return body;
 };
 
+// const compilePost = (body, slots = { default: '' }) => {
+//   body = compileSlots(body, slots);
+//
+//   var template = await readFile('./blog/template.html');
+//
+//   template.replace('template-post')
+//
+//   if (!hasImports(body)) {
+//     return body;
+//   }
+//
+//   body = compileImport(body, patterns.simpleImports);
+//   body = compileImport(body, patterns.complexImports);
+//
+//   return body;
+// };
+
 const compileTemplate = (body, slots = { default: '' }) => {
   body = compileSlots(body, slots);
 
   if (!hasImports(body)) {
+    //console.log("This has no imports");
+    //console.log(body.substring(0, 50));
     return body;
   }
 
+  console.log("Dis is da body");
+  console.log(body);
+
   body = compileImport(body, patterns.simpleImports);
-  body = compileImport(body, patterns.complexImports);
+  //body = compileImport(body, patterns.complexImports);
 
   return body;
 };
@@ -391,12 +422,29 @@ const compileFolder = async (localFolder, localPublicFolder) => {
             const fullFilePath = `${fullFolderPath}${localFilePath}`;
             const fullPublicFilePath = `${fullPublicPath}${localFilePath}`;
             const fullLocalFilePath = `/${localFolder}${localFilePath}`;
+            const ext = localFilePath.substring(localFilePath.indexOf('.'));
+            const fileName = localFilePath.replace(ext, '');
 
-            if (localFilePath.endsWith('.html')) {
+            // if (['template'].includes(fileName)) {
+            //   return resolve();
+            // }
+
+            if (ext === '.html') {
               return readFile(fullFilePath)
                 .then(compileTemplate)
                 .then(body => compileLinks(body, fullLocalFilePath))
                 .then(body => writeFile(fullPublicFilePath, body));
+            }
+
+            if (localFolder === 'posts/' && ext === '.md') {
+              return readFile('./blog/template.html')
+                .then((body) => { console.log("body:"); console.log(body); return body; })
+                .then(template => template.replace('template-post', fileName))
+                .then((template) => { console.log("Replaced:"); console.log(template); return template;})
+                .then(compileTemplate)
+                .then((compiled) => {console.log("Compiled:"); console.log(compiled); return compiled;})
+                .then(body => compileLinks(body, fullLocalFilePath))
+                .then(body => writeFile(`./public/blog/${fileName}.html`, body));
             }
 
             return new Promise((resolve, reject) => {
@@ -424,7 +472,9 @@ const compileFolder = async (localFolder, localPublicFolder) => {
   });
 };
 
-const compileFiles = async () => {
+const compileFiles = async (path) => {
+  console.log('Changed:', path);
+
   try {
     await readDir(IMPORTS);
   } catch (e) {
@@ -494,7 +544,7 @@ const sergeyRuntime = async () => {
       : OUTPUT
     ).replace('./', '');
 
-    const task = async () => await compileFiles();
+    const task = async (path) => await compileFiles(path);
 
     const watcher = chokidar.watch(watchRoot, { ignored, ignoreInitial: true });
     watcher.on('change', task);
